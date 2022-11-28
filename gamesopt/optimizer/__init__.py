@@ -1,5 +1,5 @@
 
-from gamesopt.optimizer.distributed import DIANA_SGDA, QSGDA, VR_DIANA_SGDA
+from gamesopt.optimizer.distributed import DIANA_SGDA, QSGDA, VR_DIANA_SGDA, SGDARA
 from .extragradient import EGwithVR, SVRE
 from .base import Optimizer, OptimizerOptions, OptimizerType
 from .sgda import SVRG, VRAGDA, ProxLSVRGDA, ProxSGDA, VRFoRB
@@ -28,3 +28,5 @@ def load_optimizer(game: Game, options: OptimizerOptions = OptimizerOptions(), p
         return DIANA_SGDA(game, options, prox)
     elif options.optimizer_type == OptimizerType.VR_DIANA_SGDA:
         return VR_DIANA_SGDA(game, options, prox)
+    elif options.optimizer_type == OptimizerType.SGDARA:
+        return SGDARA(game, options, prox)

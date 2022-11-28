@@ -6,6 +6,45 @@ import torch.distributed as dist
 import torch
 from .prox import Prox
 
+class SGDARA(DistributedOptimizer):
+    def step(self) -> None:
+        index = self.sample()
+        grad = self.game.operator(index)
+        with torch.no_grad():
+            rank = dist.get_rank()
+            if rank == self.game.master_node:
+                # print('root grad:', grad)
+                grads = [torch.empty_like(grad) for _ in range(dist.get_world_size())]
+                dist.gather(grad, gather_list=grads)
+                # print('list grad:', rank, grads)
+                
+                # grads contains stochastic operators values from each worker
+                # need to aggreagate them and compute
+                # g_agg = ARAgg(grads)
+                
+                bar_grad = torch.mean(torch.stack(grads), dim=0)/self.size
+                lr = self.lr(self.k)
+                
+                for i in range(self.game.num_players):
+                    g = self.game.unflatten(i, bar_grad)
+                    self.game.players[i].data = self.prox(self.game.players[i] - lr*g, lr)
+                    # self.game.players[i].data = self.game.players[i] - lr*g_agg
+                
+                
+            else:
+                # print('work grad:', grad)   
+                dist.gather(grad, dst=self.game.master_node)
+            
+            # and broadcast new point
+            for i in range(self.game.num_players):
+                dist.broadcast( self.game.players[i],  src=self.game.master_node)                    
+                # print('players ', self.k, rank, self.game.players[i])
+            
+            
+            
+            self.k += 1
+            self.num_grad += len(index)
+
 
 class QSGDA(DistributedOptimizer):
     def step(self) -> None:

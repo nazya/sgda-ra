@@ -19,13 +19,13 @@ class PortNotAvailableError(Exception):
 
 @dataclass
 class TrainDistributedConfig(TrainConfig):
-    n_process: int = 2
+    n_process: int = 3
     optimizer: OptimizerOptions = OptimizerOptions(optimizer_type=OptimizerType.QSGDA)
 
 def _train(rank: int, port: str, config: TrainDistributedConfig = TrainDistributedConfig(), record: Record = Record()) -> None:
     setup(rank, config.n_process, port)
     
-    print("Init...")
+    print("Init... ", rank)
     game = load_game(config.game, rank)
     game.set_master_node(0, config.n_process)
     game.broadcast(0)

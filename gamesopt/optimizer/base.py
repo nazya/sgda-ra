@@ -22,6 +22,7 @@ class OptimizerType(Enum):
     QSGDA = "QSGDA"
     DIANA_SGDA = "DIANA-SGDA"
     VR_DIANA_SGDA = "VR-DIANA-SGDA"
+    SGDARA = "SGDARA"
 
 LRSchedulerType = Union[float, LRScheduler]
 
