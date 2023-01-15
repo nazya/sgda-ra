@@ -1,152 +1,149 @@
-from gamesopt.optimizer.prox import Prox
-from gamesopt.optimizer.quantization import RandKQuantization
-from .base import DistributedOptimizer, OptimizerOptions
-from gamesopt.games import Game
-import torch.distributed as dist
 import torch
-from .prox import Prox
+import torch.distributed as dist
+from .base import DistributedOptimizer
+
 
 class SGDARA(DistributedOptimizer):
     def step(self) -> None:
         index = self.sample()
-        grad = self.game.operator(index)
+        index = torch.sort(index).values
+        grad = self.game.operator(index).detach()
+        # if self.k == 5:
+        #     print(str(self.k)+ ' ' + str(self.game.rank)
+        #           # +' '+str(grad) + ' '
+        #           + str(self.game.players[0])+ ' '
+        #           + str(self.game.players[1]) + ' '
+        #           + str(index))
+
         with torch.no_grad():
-            rank = dist.get_rank()
-            if rank == self.game.master_node:
-                # print('root grad:', grad)
-                grads = [torch.empty_like(grad) for _ in range(dist.get_world_size())]
-                dist.gather(grad, gather_list=grads)
-                # print('list grad:', rank, grads)
-                
-                # grads contains stochastic operators values from each worker
-                # need to aggreagate them and compute
-                # g_agg = ARAgg(grads)
-                
-                bar_grad = torch.mean(torch.stack(grads), dim=0)/self.size
-                lr = self.lr(self.k)
-                
+            # collect all the gradients to simulate Byzantinesf
+            grads = [torch.empty_like(grad) for _ in range(self.size)]
+            dist.all_gather(tensor=grad, tensor_list=grads)
+
+            # server
+            if self.game.rank == self.game.master_node:
+                # attack
+                for rank in range(self.size):
+                    self.attack(grads, rank)
+                    # dist.all_gather(tensor=grad, tensor_list=grads)
+
+                # aggregation
+                agg_grad = self.aggregator(grads)
                 for i in range(self.game.num_players):
-                    g = self.game.unflatten(i, bar_grad)
-                    self.game.players[i].data = self.prox(self.game.players[i] - lr*g, lr)
-                    # self.game.players[i].data = self.game.players[i] - lr*g_agg
-                
-                
-            else:
-                # print('work grad:', grad)   
-                dist.gather(grad, dst=self.game.master_node)
-            
-            # and broadcast new point
+                    g = self.game.unflatten(i, agg_grad)
+                    self.game.players[i].data = self.game.players[i] - self.lr*g
+
+            # broadcast new point
             for i in range(self.game.num_players):
-                dist.broadcast( self.game.players[i],  src=self.game.master_node)                    
-                # print('players ', self.k, rank, self.game.players[i])
+                dist.broadcast(self.game.players[i], src=self.game.master_node)
+
+        self.k += 1
+        self.num_grad += len(index)
+
+
+
+
+# class QSGDA(DistributedOptimizer):
+#     def step(self) -> None:
+#         index = self.sample()
+#         grad = self.game.operator(index)
+#         with torch.no_grad():
+#             grad, n_bits =self.quantization(grad)
             
+#             self.n_bits += n_bits
+#             dist.all_reduce(grad)
+#             grad /= self.size
+#             for i in range(self.game.num_players):
+#                 lr = self.lr(self.k)
+#                 g = self.game.unflatten(i, grad) # Reshape the grad to match players shape
+#                 self.game.players[i].data = self.prox(self.game.players[i] - lr*g/self.size, lr)
+
+#             self.k += 1
+#             self.num_grad += len(index)
+
+
+# class DIANA_SGDA(DistributedOptimizer):
+#     def __init__(self, game: Game, options: OptimizerOptions = OptimizerOptions(), prox: Prox = Prox()) -> None:
+#         super().__init__(game, options, prox)
+#         self.alpha = options.alpha
+#         if self.alpha is None and isinstance(self.quantization, RandKQuantization):
+#             self.alpha = self.quantization.k / self.game.dim
+#         elif self.alpha is None:
+#             self.alpha = 0.
+
+#         self.buffer = 0
+#         self.buffer_server = 0
+
+#     def step(self) -> None:
+#         index = self.sample()
+#         grad = self.game.operator(index).detach()
+#         with torch.no_grad():
+#             delta: torch.Tensor = grad - self.buffer
+#             delta, n_bits = self.quantization(delta)
+#             self.buffer = self.buffer + self.alpha*delta
+
+#             self.n_bits += n_bits
+#             dist.all_reduce(delta)
+#             delta /= self.size
+#             full_grad = self.buffer_server + delta
+#             self.buffer_server = self.buffer_server + self.alpha*delta
+#             for i in range(self.game.num_players):
+#                 lr = self.lr(self.k)
+#                 g = self.game.unflatten(i, full_grad)
+#                 self.game.players[i].data = self.prox(self.game.players[i] - lr*g/self.size, lr)
             
-            
-            self.k += 1
-            self.num_grad += len(index)
+#             self.k += 1
+#             self.num_grad += len(index)
 
+# class VR_DIANA_SGDA(DistributedOptimizer):
+#     def __init__(self, game: Game, options: OptimizerOptions = OptimizerOptions(), prox: Prox = Prox()) -> None:
+#         super().__init__(game, options, prox)
+#         self.alpha = options.alpha
+#         if self.alpha is None and isinstance(self.quantization, RandKQuantization):
+#             self.alpha = self.quantization.k / self.game.dim
+#         elif self.alpha is None:
+#             self.alpha = 0.
 
-class QSGDA(DistributedOptimizer):
-    def step(self) -> None:
-        index = self.sample()
-        grad = self.game.operator(index)
-        with torch.no_grad():
-            grad, n_bits =self.quantization(grad)
-            
-            self.n_bits += n_bits
-            dist.all_reduce(grad)
-            grad /= self.size
-            for i in range(self.game.num_players):
-                lr = self.lr(self.k)
-                g = self.game.unflatten(i, grad) # Reshape the grad to match players shape
-                self.game.players[i].data = self.prox(self.game.players[i] - lr*g/self.size, lr)
+#         self.p = options.p
+#         if self.p is None:
+#             self.p = 1/game.num_samples
+#         self.p = torch.as_tensor(self.p)
 
-            self.k += 1
-            self.num_grad += len(index)
-
-
-class DIANA_SGDA(DistributedOptimizer):
-    def __init__(self, game: Game, options: OptimizerOptions = OptimizerOptions(), prox: Prox = Prox()) -> None:
-        super().__init__(game, options, prox)
-        self.alpha = options.alpha
-        if self.alpha is None and isinstance(self.quantization, RandKQuantization):
-            self.alpha = self.quantization.k / self.game.dim
-        elif self.alpha is None:
-            self.alpha = 0.
-
-        self.buffer = 0
-        self.buffer_server = 0
-
-    def step(self) -> None:
-        index = self.sample()
-        grad = self.game.operator(index).detach()
-        with torch.no_grad():
-            delta: torch.Tensor = grad - self.buffer
-            delta, n_bits = self.quantization(delta)
-            self.buffer = self.buffer + self.alpha*delta
-
-            self.n_bits += n_bits
-            dist.all_reduce(delta)
-            delta /= self.size
-            full_grad = self.buffer_server + delta
-            self.buffer_server = self.buffer_server + self.alpha*delta
-            for i in range(self.game.num_players):
-                lr = self.lr(self.k)
-                g = self.game.unflatten(i, full_grad)
-                self.game.players[i].data = self.prox(self.game.players[i] - lr*g/self.size, lr)
-            
-            self.k += 1
-            self.num_grad += len(index)
-
-class VR_DIANA_SGDA(DistributedOptimizer):
-    def __init__(self, game: Game, options: OptimizerOptions = OptimizerOptions(), prox: Prox = Prox()) -> None:
-        super().__init__(game, options, prox)
-        self.alpha = options.alpha
-        if self.alpha is None and isinstance(self.quantization, RandKQuantization):
-            self.alpha = self.quantization.k / self.game.dim
-        elif self.alpha is None:
-            self.alpha = 0.
-
-        self.p = options.p
-        if self.p is None:
-            self.p = 1/game.num_samples
-        self.p = torch.as_tensor(self.p)
-
-        self.buffer = 0
-        self.buffer_server = 0
+#         self.buffer = 0
+#         self.buffer_server = 0
         
-        self.set_state()
+#         self.set_state()
 
-    def set_state(self) -> None:
-        self.game_copy = self.game.copy()
-        self.full_grad = self.game.full_operator().detach()
-        self.num_grad += self.game.num_samples
+#     def set_state(self) -> None:
+#         self.game_copy = self.game.copy()
+#         self.full_grad = self.game.full_operator().detach()
+#         self.num_grad += self.game.num_samples
 
-    def step(self) -> None:
-        index = self.sample()
-        grad = self.game.operator(index).detach()
-        grad_copy = self.game.operator(index).detach()
+#     def step(self) -> None:
+#         index = self.sample()
+#         grad = self.game.operator(index).detach()
+#         grad_copy = self.game.operator(index).detach()
 
-        update = (grad - grad_copy + self.full_grad)
+#         update = (grad - grad_copy + self.full_grad)
 
-        if torch.bernoulli(self.p):
-            self.set_state()
+#         if torch.bernoulli(self.p):
+#             self.set_state()
 
-        with torch.no_grad():
-            delta: torch.Tensor = update - self.buffer
-            delta, n_bits = self.quantization(delta)
-            self.buffer = self.buffer + self.alpha*delta
+#         with torch.no_grad():
+#             delta: torch.Tensor = update - self.buffer
+#             delta, n_bits = self.quantization(delta)
+#             self.buffer = self.buffer + self.alpha*delta
 
-            self.n_bits += n_bits
-            dist.all_reduce(delta)
-            delta /= self.size
-            full_grad = self.buffer_server + delta
-            self.buffer_server = self.buffer_server + self.alpha*delta
+#             self.n_bits += n_bits
+#             dist.all_reduce(delta)
+#             delta /= self.size
+#             full_grad = self.buffer_server + delta
+#             self.buffer_server = self.buffer_server + self.alpha*delta
 
-            for i in range(self.game.num_players):
-                lr = self.lr(self.k)
-                g = self.game.unflatten(i, full_grad)
-                self.game.players[i].data = self.prox(self.game.players[i] - lr*g/self.size, lr)    
+#             for i in range(self.game.num_players):
+#                 lr = self.lr(self.k)
+#                 g = self.game.unflatten(i, full_grad)
+#                 self.game.players[i].data = self.prox(self.game.players[i] - lr*g/self.size, lr)    
             
-            self.k += 1
-            self.num_grad += 2*len(index)
+#             self.k += 1
+#             self.num_grad += 2*len(index)

@@ -1,4 +1,4 @@
-from .optimizer.prox import ProxOptions, load_prox
+# from .optimizer.prox import ProxOptions, load_prox
 from .games import load_game, GameOptions
 from .optimizer import load_optimizer, OptimizerOptions
 from dataclasses import dataclass
@@ -10,20 +10,31 @@ from typing import Optional
 
 @dataclass
 class TrainConfig:
-    game: GameOptions = GameOptions()
-    optimizer: OptimizerOptions = OptimizerOptions()
-    prox: ProxOptions = ProxOptions()
-    num_iter: int = 100
-    seed: int = 1234
-    name: str = ""
-    save_file: Optional[Path] = None
-    load_file: Optional[Path] = None
-    precision: float = 1.
+    game: GameOptions
+    optimizer: OptimizerOptions
+    num_iter: int
+    # seed: int = 1234
+    # name: str = ""
+    # save_file: Optional[Path] = None
+    # load_file: Optional[Path] = None
+    # precision: float = 1.
+
+# @dataclass
+# class TrainConfig:
+#     game: GameOptions = GameOptions()
+#     optimizer: OptimizerOptions = OptimizerOptions()
+#     # prox: ProxOptions = ProxOptions()
+#     num_iter: int = 100
+#     seed: int = 1234
+#     name: str = ""
+#     save_file: Optional[Path] = None
+#     load_file: Optional[Path] = None
+#     precision: float = 1.
 
 
-def train(config: TrainConfig = TrainConfig(), record: Record = Record()) -> Record:
+def train(config: TrainConfig, record: Record = Record()) -> Record:
     record.save_config(config)
-    torch.manual_seed(config.seed)
+    # torch.manual_seed(config.seed)
     
     print("Init...")
     game = load_game(config.game)
