@@ -22,7 +22,7 @@ class OptimizerType(Enum):
     # VR_DIANA_SGDA = "VR-DIANA-SGDA"
     SGDARA = "SGDARA"
     MSGDARA = "MSGDARA"
-    SEGDARA = 'SEGDARA'
+    SEGRA = 'SEGRA'
     SGDACC = "SGDACC"
 
 

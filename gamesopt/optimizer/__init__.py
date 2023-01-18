@@ -1,5 +1,4 @@
-from gamesopt.optimizer.distributed import SGDARA, MSGDARA, SEGDARA, SGDACC
-from gamesopt.optimizer.distributed import SGDARA, SGDACC
+from gamesopt.optimizer.distributed import SGDARA, MSGDARA, SEGRA, SGDACC
 from gamesopt.games import Game
 from .base import Optimizer, OptimizerOptions, OptimizerType
 
@@ -8,9 +7,9 @@ def load_optimizer(game: Game, options: OptimizerOptions) -> Optimizer:
     if options.optimizer_type == OptimizerType.SGDARA:
         return SGDARA(game, options)
     elif options.optimizer_type == OptimizerType.MSGDARA:
-         return MSGDARA(game, options)
-    elif options.optimizer_type == OptimizerType.SEGDARA:
-        return SEGDARA(game, options)
+        return MSGDARA(game, options)
+    elif options.optimizer_type == OptimizerType.SEGRA:
+        return SEGRA(game, options)
     elif options.optimizer_type == OptimizerType.SGDACC:
         return SGDACC(game, options)
     # elif options.optimizer_type == OptimizerType.PROX_LSVRGDA:
