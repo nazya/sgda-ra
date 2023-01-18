@@ -1,11 +1,10 @@
+import sys
 from pathlib import Path
 from .base import Game
-from .utils import random_vector
 import torch
 import math
 from dataclasses import dataclass
-from typing import Optional, Union, Tuple
-from torch import linalg
+from typing import Optional
 import torch.distributed as dist
 
 
@@ -18,112 +17,113 @@ class QuadraticGameConfig:
     sigma: float
     mu: float
     ell: Optional[float]
+    seed: int = 0
     matrix: Optional[torch.Tensor] = None
-
+    # bias: Optional[torch.Tensor] = None
 
 
 class QuadraticGame(Game):
     def __init__(self, config: QuadraticGameConfig) -> None:
         self.config = config
-        self._dim = config.dim
-        players = [torch.zeros(self._dim, requires_grad=True),
-                   torch.zeros(self._dim, requires_grad=True)]
-        super().__init__(players, config.num_samples)
-        torch.manual_seed(dist.get_rank())
-        self.matrix = torch.randn(self.num_samples,
+        # self._dim = config.dim
+        super().__init__(config.num_samples)
+        self.players = torch.ones(self.num_players*config.dim, requires_grad=False)
+        self.dim = sum(p.numel() for p in self.players)
+        torch.manual_seed(config.seed)
+        # self.true = torch.zeros(1, self.num_players*config.dim, requires_grad=True)
+        self.bias = torch.zeros(config.num_samples,
+                                self.num_players*config.dim)
+        self.matrix = torch.zeros(self.num_samples,
                                   self.num_players*config.dim,
                                   self.num_players*config.dim,
                                   requires_grad=False)
 
-        for i in range(self.num_samples):
-            self.matrix[i] = self.generate_matrix(self.num_samples,
-                                                  self._dim, config.mu,
-                                                  config.ell)
+        if self.rank == self.master_node:
+            A1 = torch.randn(config.num_samples, config.dim, config.dim,
+                             requires_grad=False)
+            e, V = torch.linalg.eigh(A1@A1.transpose(1, 2))
+            e -= torch.min(e, 1)[0][:, None]
+            e /= torch.max(e, 1)[0][:, None]
+            e *= config.ell - config.mu
+            e += config.mu
+            A1 = V @ torch.diag_embed(e) @ V.transpose(1, 2)
+            A2 = torch.randn(config.num_samples, config.dim, config.dim,
+                             requires_grad=False)
+            # A2 = A2@A2.transpose(1, 2)
+            # s = torch.linalg.eigvals(A2)
+            # print(s.real.max(1))
+            e, V = torch.linalg.eigh(A2@A2.transpose(1, 2))
+            e /= torch.max(e, 1)[0][:, None]
+            e *= config.ell
+            A2 = V @ torch.diag_embed(e) @ V.transpose(1, 2)
+            A3 = torch.randn(config.num_samples, config.dim, config.dim,
+                             requires_grad=False)
+            e, V = torch.linalg.eigh(A3@A3.transpose(1, 2))
+            e -= torch.min(e, 1)[0][:, None]
+            e /= torch.max(e, 1)[0][:, None]
+            e *= config.ell - config.mu
+            e += config.mu
+            A3 = V @ torch.diag_embed(e) @ V.transpose(1, 2)
+            A12 = torch.cat((A1, A2), dim=1)
+            A23 = torch.cat((-A2.transpose(1, 2), A3), dim=1)
+            self.matrix = torch.cat((A12, A23), dim=2)
+            mean_m = self.matrix.mean(dim=0)
+            self.matrix = (1-config.sigma)*mean_m \
+                + config.sigma*self.matrix
+            print('Matrix generated')
 
-        mean = self.matrix.mean(dim=0)
-        for i in range(self.num_samples):
-            self.matrix[i] = (1-config.sigma)*mean \
-                + config.sigma*self.matrix[i]
+            if config.bias:
+                if self.rank == self.master_node:
+                    self.bias = 10*self.bias.normal_() \
+                        / math.sqrt(self.num_players*config.dim)
+            mean_b = self.bias.mean(dim=0)
+            self.bias = (1-config.sigma)*mean_b \
+                + config.sigma*self.bias
+            print('Bias generated')
+            self.true = torch.linalg.solve(mean_m, -mean_b)
+            print('Solution found')
 
-        # print('Matrix generated')
-        # print(dist.get_rank(), self.matrix)
-        self.bias = torch.zeros(2, config.num_samples, config.dim)
-        if config.bias:
-            if self.rank == self.master_node:
-                self.bias = 10*self.bias.normal_() / math.sqrt(self._dim)
-            dist.broadcast(self.bias, src=self.master_node)
+        dist.broadcast(self.bias, src=self.master_node)
+        dist.broadcast(self.matrix, src=self.master_node)
+        # print(self.matrix)
+        dist.broadcast(self.players, src=self.master_node)
+        # dist.broadcast(self.true, src=self.master_node)
 
-        mean = self.bias.mean(dim=1)
-        for i in range(self.num_samples):
-            self.bias[:, i, :] = (1 - config.sigma) * mean \
-                + config.sigma*self.bias[:, i, :]
+    def operator(self, index) -> torch.Tensor:
+        grads = torch.matmul(self.matrix[index],
+                             self.players) + self.bias[index]
+                             # self.players.squeeze()) + self.bias[index]
+        grads = grads.mean(dim=0)
+        return grads
 
-        for i in range(self.num_players):
-            dist.broadcast(self.players[i].data, src=self.master_node)
+    def dist(self) -> float:
+        dist = torch.linalg.norm(self.true - self.players)
+        return float(dist)
 
-    def generate_matrix(self, num_samples: int, dim: int, mu: float, ell: float) -> torch.Tensor:
-        A1 = torch.randn(dim, dim, requires_grad=False)
-        dist.broadcast(A1, src=self.master_node)
-        e, V = torch.linalg.eig(A1.T@A1)
-        e -= e.real.min()
-        e /= e.real.max()
-        e *= ell - mu
-        e += mu
-        A1 = V @ torch.diag_embed(e) @ torch.linalg.inv(V)
-        A2 = torch.randn(dim, dim, requires_grad=False)
-        dist.broadcast(A2, src=self.master_node)
-        A2 = A2.T@A2
-        A3 = torch.randn(dim, dim, requires_grad=False)
-        dist.broadcast(A3, src=self.master_node)
-        e, V = torch.linalg.eig(A3.T@A3)
-        e -= e.real.min()
-        e /= e.real.max()
-        e *= ell - mu
-        e += mu
-        A3 = V @ torch.diag_embed(e) @ torch.linalg.inv(V)
-        A12 = torch.cat((A1, A2), dim=0)
-        A23 = torch.cat((-A2, A3), dim=0)
-        A = torch.cat((A12, A23), dim=1)
-        return A.real
-        # print('a', A)
-        # s = torch.linalg.eigvals(A)
-        # print('Matrix generated', s)
+    def hamiltonian(self) -> float:
+        hamiltonian = torch.linalg.norm(self.true - self.players)
+        index = self.sample_batch()
+        grad = self.operator(index)
+        grad /= self.size
 
-    def sample(self, n: int) -> torch.Tensor:
-        if n > self.config.num_samples:
-            raise Exception("Batch size should be not greater than the total number of samples")
-        return torch.multinomial(self.p, n, replacement=False)
-
-    def sample_batch(self) -> torch.Tensor:
-        return torch.arange(self.num_samples).long()
-
-    def loss(self, index: int) -> torch.Tensor:
-        loss = []
-        for i in range(self.num_players):
-            _loss = self.bias[i, index]
-            for j in range(self.num_players):
-                _loss += (self.matrix[index, i*self._dim:(i+1)*self._dim,
-                                      j*self._dim:(j+1)*self._dim]
-                          * self.players[j].view(1, 1, -1)).sum(-1)
-            _loss = (_loss*self.players[i].view(1, -1)).sum(-1).mean()
-
-            loss.append(_loss)
-        return loss
-
+        hamiltonian = (grad**2).sum()
+        hamiltonian /= 2
+        return float(hamiltonian)
 
     def save(self, path: Path) -> None:
         path.mkdir(parents=True, exist_ok=True)
         filename = "model"
         if self.rank is not None:
-            filename += "_%i"%self.rank
+            filename += "_%i" % self.rank
         filename = path / ("%s.pth" % filename)
 
-        torch.save({"config": self.config, "players": self.players, "matrix": self.matrix, "bias": self.bias}, filename)
+        torch.save({"config": self.config, "players": self.players,
+                    "matrix": self.matrix, "bias": self.bias}, filename)
 
     def load(self, path: Path, copy: bool = False) -> Game:
         filename = "model"
         if self.rank is not None:
-            filename += "_%i"%self.rank
+            filename += "_%i" % self.rank
         filename = path / ("%s.pth" % filename)
 
         checkpoint = torch.load(filename)

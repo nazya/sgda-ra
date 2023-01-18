@@ -17,13 +17,15 @@ class AttackType(Enum):
 class AttackOptions:
     n_total: int
     n_byzan: int
+    n_attacking: int
     attack_type: AttackType
-    rn_sigma: float = 0.
-    ipm_epsilon: float = 0.
+    rn_sigma: float
+    ipm_epsilon: float
     alie_z: float = None
 
     def __post_init__(self):
-        self.byzan_index = np.arange(self.n_total - self.n_byzan, self.n_total)
+        self.byzantines = np.arange(self.n_total - self.n_byzan, self.n_total)
+        # self.n_attacking = max(self.n_attacking, self.n_byzan)
 
 
 class _BaseAttack(object):
@@ -33,9 +35,7 @@ class _BaseAttack(object):
     """
 
     def __init__(self, inputs):
-        # Logger.get().info("Init aggregator: " + self.__str__())
-        # log_dict({"Aggregator": self.__str__(), "Type": "Setup"})
-        return
+        raise NotImplementedError
 
     def __call__(self, inputs):
         """Performe an attack in-place.

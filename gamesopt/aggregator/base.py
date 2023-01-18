@@ -1,7 +1,6 @@
 """
 Aggregators which takes in weights and gradients.
 """
-import torch
 from dataclasses import dataclass
 from enum import Enum
 
@@ -14,7 +13,7 @@ class AggregatorType(Enum):
     TM = "TM"
     RFA = "RFA"
 
-    
+
 @dataclass
 class AggregationOptions:
     n_total: int

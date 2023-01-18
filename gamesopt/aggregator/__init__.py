@@ -1,3 +1,4 @@
+import torch
 import numpy as np
 from .base import AggregatorType, AggregationOptions
 from .aggregation import Mean, CM, Clipping, Krum, TM, RFA
@@ -46,6 +47,7 @@ class Bucketing(object):
             indices_slice = indices[t * self.s:(t + 1) * self.s]
             g_bar = sum(inputs[i] for i in indices_slice) / len(indices_slice)
             reshuffled_inputs.append(g_bar)
+        # reshuffled_inputs = torch.stack(reshuffled_inputs, 0)
         return self.aggregator(reshuffled_inputs)
 
     def __str__(self):

@@ -1,20 +1,25 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Tuple, Union
-from gamesopt.games import Game
-from enum import Enum
 from dataclasses import dataclass
+<<<<<<< HEAD
+from enum import Enum
+from typing import Optional
+=======
 
 # from .prox import Prox
-from gamesopt.aggregator import AggregationOptions, load_bucketing
+from gamesopt.aggregator import AggregationOptions
 from gamesopt.attacks import AttackOptions, load_attack
 # from .lr import LRScheduler, FixedLR
+>>>>>>> 246dfe4... speed up
 import torch
 import torch.distributed as dist
+from gamesopt.aggregator import AggregationOptions, load_bucketing
+from gamesopt.attacks import AttackOptions, load_attack
+from gamesopt.games import Game
 
 
 class OptimizerType(Enum):
     # PROX_SGDA = "Prox-SGDA"
-    # PROX_LSVRGDA = "Prox-L-SVRGDA"
+    # PROX_LSVRGDA = "Prox-L-SVRGDAs"
     # SVRG = "SVRG"
     # VRFORB = "VR-FoRB"
     # VRAGDA = "VR-AGDA"
@@ -24,29 +29,35 @@ class OptimizerType(Enum):
     # DIANA_SGDA = "DIANA-SGDA"
     # VR_DIANA_SGDA = "VR-DIANA-SGDA"
     SGDARA = "SGDARA"
+<<<<<<< HEAD
+    MSGDARA = "MSGDARA"
+    SEGDARA = 'SEGDARA'
+=======
+    SGDACC = "SGDACC"
+>>>>>>> 246dfe4... speed up
 
-# LRSchedulerType = Union[float, LRScheduler]
 
 @dataclass
 class OptimizerOptions:
     optimizer_type: OptimizerType
     lr: float
+    alpha: float
     batch_size: int
     aggregation_options: AggregationOptions
     attack_options: AttackOptions
-    full_batch: bool = None
-
+    sigmaC: float
 
 class Optimizer(ABC):
     def __init__(self, game: Game, options: OptimizerOptions) -> None:
         self.game: Game = game
+        self.options = options
         self.k = 0
-        self.lr = options.lr
-        self.batch_size = options.batch_size
         self.num_grad = 0
+        self.lr = options.lr
+        self.alpha = options.alpha
+        self.batch_size = options.batch_size
         self.attack_options = options.attack_options
         self.attack = load_attack(options.attack_options)
-        self.aggregator = load_bucketing(options.aggregation_options)
 
     def sample(self) -> Optional[torch.Tensor]:
         return self.game.sample(self.batch_size)
@@ -69,12 +80,13 @@ class DistributedOptimizer(Optimizer):
     def __init__(self, game: Game, options: OptimizerOptions) -> None:
         super().__init__(game, options)
         self.size = int(dist.get_world_size())
+        self.peers_to_aggregate = [i for i in range(self.size)]
         # self.n_bits = 0
 
-    def get_num_grad(self) -> int:
-        num_grad = torch.tensor([self.num_grad])
-        dist.all_reduce(num_grad)
-        return int(num_grad)
+    # def get_num_grad(self) -> int:
+    #     num_grad = torch.tensor([self.num_grad])
+    #     dist.all_reduce(num_grad)
+    #     return int(num_grad)
 
     # def fixed_point_check(self, precision: float = 1., rank: int = 0) -> float:
     #     grad = self.game.full_operator()
