@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from gamesopt.attacks import AttackOptions, load_attack
 import torch
 import torch.distributed as dist
-from gamesopt.aggregator import AggregationOptions, load_bucketing
+from gamesopt.aggregator import AggregationOptions
 from gamesopt.games import Game
 
 
@@ -37,6 +37,7 @@ class OptimizerOptions:
     sigmaC: float
     lr_inner: float
     lr_outer: float
+
 
 class Optimizer(ABC):
     def __init__(self, game: Game, options: OptimizerOptions) -> None:

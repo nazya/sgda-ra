@@ -3,7 +3,6 @@ import torch.distributed as dist
 from .base import DistributedOptimizer, OptimizerOptions
 from gamesopt.games import Game
 from gamesopt.aggregator import AggregatorType, load_aggregator, load_bucketing
-from gamesopt.games import Game
 
 
 class SGDARA(DistributedOptimizer):
@@ -40,19 +39,20 @@ class SGDARA(DistributedOptimizer):
         dist.broadcast(self.game.players, src=self.game.master_node)
         self.k += 1
 
+
 class MSGDARA(DistributedOptimizer):
     def __init__(self, game: Game, options: OptimizerOptions) -> None:
-            super().__init__(game, options)
-            self.aggregator = load_bucketing(self.options.aggregation_options)
-            self.alpha = options.alpha
-            self.momentum = None
+        super().__init__(game, options)
+        self.aggregator = load_bucketing(self.options.aggregation_options)
+        self.alpha = options.alpha
+        self.momentum = None
 
     def step(self) -> None:
         index = self.sample()
         index = torch.sort(index).values
         grad = self.game.operator(index).detach()
 
-        if self.k==0:
+        if self.k == 0:
             self.momentum = grad.clone().detach()
         self.momentum = (1-self.alpha)*self.momentum+self.alpha*grad
 
@@ -61,7 +61,8 @@ class MSGDARA(DistributedOptimizer):
             if self.game.rank == self.game.master_node:
                 # collect all the gradients to simulate Byzantines
                 # grads = [torch.empty_like(grad) for _ in range(self.size)]
-                momentums = [torch.empty_like(self.momentum) for _ in range(self.size)]
+                momentums = [torch.empty_like(self.momentum)
+                             for _ in range(self.size)]
                 dist.gather(grad, gather_list=momentums)
 
                 # attack
@@ -79,7 +80,8 @@ class MSGDARA(DistributedOptimizer):
         dist.broadcast(self.game.players, src=self.game.master_node)
         self.k += 1
 
-class SEGDARA(DistributedOptimizer):
+
+class SEGRA(DistributedOptimizer):
     def __init__(self, game: Game, options: OptimizerOptions) -> None:
         super().__init__(game, options)
         self.aggregator = load_bucketing(self.options.aggregation_options)
@@ -93,7 +95,7 @@ class SEGDARA(DistributedOptimizer):
     def step(self) -> None:
         index = self.sample()
         grad = self.game.operator(index).detach()
-        data_copy=self.game.players.data.clone().detach()
+        data_copy = self.game.players.data.clone().detach()
         with torch.no_grad():
             # server
             if self.game.rank == self.game.master_node:
@@ -137,63 +139,6 @@ class SEGDARA(DistributedOptimizer):
         # broadcast new point
         dist.broadcast(self.game.players, src=self.game.master_node)
         self.k += 1
-    # def step(self) -> None:
-    #     index = self.sample()
-    #     #game_copy = self.game.copy()
-    #     grad = self.game.operator(index).detach()
-    #     # grad_copy = self.game_copy.operator(index).detach()
-    #     # update = grad - grad_copy + self.full_grad
-    #     with torch.no_grad():
-    #         # collect all the gradients to simulate Byzantinesf
-    #         updates = [torch.empty_like(grad) for _ in range(self.size)]
-    #         dist.all_gather(tensor=grad, tensor_list=updates)
-
-    #         # server
-    #         if self.game.rank == self.game.master_node:
-    #             # attack
-    #             for rank in range(self.size):
-    #                 self.attack(updates, rank)
-    #                 # dist.all_gather(tensor=grad, tensor_list=grads)
-
-    #             # aggregation
-    #             agg_grad = self.aggregator(updates)
-    #             for i in range(self.game.num_players):
-    #                 g = self.game.unflatten(i, agg_grad)
-    #                 self.game.players[i].data = self.game.players[i] - self.lr*g
-
-    #         # broadcast new point
-    #         for i in range(self.game.num_players):
-    #             dist.broadcast(self.game.players[i], src=self.game.master_node)
-
-
-    #     index = self.sample()
-    #     grad = self.game.operator(index).detach()
-    #     # grad_copy = self.game_copy.operator(index).detach()
-    #     # update = grad - grad_copy + self.full_grad
-    #     with torch.no_grad():
-    #         # collect all the gradients to simulate Byzantinesf
-    #         updates = [torch.empty_like(grad) for _ in range(self.size)]
-    #         dist.all_gather(tensor=grad, tensor_list=updates)
-
-    #         # server
-    #         if self.game.rank == self.game.master_node:
-    #             # attack
-    #             for rank in range(self.size):
-    #                 self.attack(updates, rank)
-    #                 # dist.all_gather(tensor=grad, tensor_list=grads)
-
-    #             # aggregation
-    #             agg_grad = self.aggregator(updates)
-    #             for i in range(self.game.num_players):
-    #                 g = self.game.unflatten(i, agg_grad)
-    #                 self.game.players[i].data = self.game.players[i] - self.lr*g
-
-    #         # broadcast new point
-    #         for i in range(self.game.num_players):
-    #             dist.broadcast(self.game.players[i], src=self.game.master_node)
-    
-    #     self.num_grad += len(index)
-    #     self.k += 1
 
 
 class SGDACC(DistributedOptimizer):
