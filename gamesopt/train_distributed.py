@@ -28,7 +28,7 @@ def _train(rank: int, port: str, config: TrainDistributedConfig, record: Record 
     setup(rank, config.n_process, port)
     # print("Init... ", rank)
     game = load_game(config.game, rank)
-    game.set_master_node(0, config.n_process)
+    # game.set_master_node(0, config.n_process)
     # if config.load_file is not None:
     #     game_copy = game.load(config.load_file, copy=True)
     optimizer: DistributedOptimizer = load_optimizer(game, config.optimizer)
@@ -37,18 +37,17 @@ def _train(rank: int, port: str, config: TrainDistributedConfig, record: Record 
     metrics = defaultdict(list)
     # print(record.id)
     for _ in range(config.num_iter):
-        hamiltonian = game.hamiltonian()
-        num_grad = optimizer.get_num_grad()
         if rank == 0:
-            metrics["hamiltonian"].append(hamiltonian)
+            metrics["dist"].append(game.dist())
+            # metrics["hamiltonian"].append(game.hamiltonian())
             metrics["n_iter"].append(optimizer.k)
-            metrics["num_grad"].append(num_grad)
+            metrics["num_grad"].append(optimizer.num_grad)
             # metrics["n_bits"].append(n_bits)
             # metrics["prox_dist"].append(prox_dist)
             # if config.load_file:
             #     metrics["dist2opt"].append(game.dist(game_copy))
             record.save_metrics(metrics)
-            sys.stdout.write('\r'+str(config.num_iter - 1 - optimizer.k)+9*' ')
+            sys.stdout.write(str(config.num_iter - 1 - optimizer.k)+9*' '+'\r')
             sys.stdout.flush()
 
         optimizer.step()

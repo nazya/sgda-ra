@@ -9,7 +9,11 @@ class Mean(_BaseAggregator):
         pass
 
     def __call__(self, inputs):
-        values = torch.stack(inputs, dim=0).mean(dim=0)
+        if len(inputs) == 0:
+            print('len = 0')
+            return 0
+        inputs = torch.stack(inputs, dim=0)
+        values = inputs.mean(dim=0)
         return values
 
     def __str__(self):
@@ -43,8 +47,9 @@ class TM(_BaseAggregator):
 
 
 class CM(_BaseAggregator):
-    def __init__(self, options:AggregationOptions) -> None:
+    def __init__(self, options: AggregationOptions) -> None:
         pass
+
     def __call__(self, inputs):
         stacked = torch.stack(inputs, dim=0)
         values_upper, _ = stacked.median(dim=0)
@@ -53,7 +58,7 @@ class CM(_BaseAggregator):
 
 
 class Clipping(_BaseAggregator):
-    def __init__(self, options:AggregationOptions) -> None:
+    def __init__(self, options: AggregationOptions) -> None:
         self.tau = options.clipping_tau
         self.n_iter = options.clipping_n_iter
         # super(Clipping, self).__init__()

@@ -5,7 +5,7 @@ from gamesopt.games import Game
 import torch
 
 
-class ProxSGDA(Optimizer):
+class SGDARA(Optimizer):
     def step(self) -> None:
         index = self.sample()
         grad = self.game.operator(index).detach()
