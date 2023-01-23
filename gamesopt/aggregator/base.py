@@ -12,6 +12,7 @@ class AggregatorType(Enum):
     CM = "CM"
     TM = "TM"
     RFA = "RFA"
+    UnivariateTM = 'UnivariateTM'
 
 
 @dataclass
@@ -27,6 +28,9 @@ class AggregationOptions:
     krum_m: int
     rfa_T: int
     rfa_nu: int
+    # UnivariateTM_alpha: float
+    # UnivariateTM_delta: float
+
     # bucketing: int=10
 
 

@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 from .base import AggregatorType, AggregationOptions
-from .aggregation import Mean, CM, Clipping, Krum, TM, RFA
+from .aggregation import Mean, CM, Clipping, Krum, TM, RFA, UnivariateTM
 
 
 def load_bucketing(options: AggregationOptions):
@@ -26,6 +26,8 @@ def load_aggregator(options: AggregationOptions):
         return CM(options)
     elif options.aggregator_type == AggregatorType.RFA:
         return RFA(options)
+    elif options.aggregator_type == AggregatorType.UnivariateTM:
+        return UnivariateTM(options)
     else:
         raise NotImplementedError()
 

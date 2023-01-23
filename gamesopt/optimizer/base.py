@@ -24,6 +24,8 @@ class OptimizerType(Enum):
     MSGDARA = "MSGDARA"
     SEGRA = 'SEGRA'
     SGDACC = "SGDACC"
+    SEGCC = 'SEGCC'
+    RDEG = 'RDEG'
 
 
 @dataclass

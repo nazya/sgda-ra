@@ -1,7 +1,9 @@
 # from typing import Optional
-import torch
+import torch, random
 # import torch.nn.functional as F
 from .base import _BaseAggregator, AggregationOptions
+from random import sample
+import numpy
 
 
 class Mean(_BaseAggregator):
@@ -52,8 +54,10 @@ class CM(_BaseAggregator):
 
     def __call__(self, inputs):
         stacked = torch.stack(inputs, dim=0)
+        print(stacked.shape)
         values_upper, _ = stacked.median(dim=0)
         values_lower, _ = (-stacked).median(dim=0)
+        print((values_upper - values_lower) / 2)
         return (values_upper - values_lower) / 2
 
 
@@ -232,3 +236,50 @@ class RFA(_BaseAggregator):
 
     def __str__(self):
         return "RFA(T={},nu={})".format(self.T, self.nu)
+
+
+class UnivariateTM(_BaseAggregator):
+    def __init__(self, options: AggregationOptions) -> None:
+        # self.alpha = options.UnivariateTM_alpha
+        # self.delta = options.UnivariateTM_delta
+        pass
+        # super(TM, self).__init__()
+
+    def __call__(self, inputs):
+        # epsilon = 8 * self.alpha + 24 * numpy.log(4/self.delta) / len(inputs)
+        epsilon = 0.3
+        # print(inputs)
+        Z1_size = int(0.5*len(inputs))
+        Z_1 = random.sample(inputs,Z1_size)
+        Z_2 = list(set(inputs) - set(Z_1))
+        Z_1 = torch.stack(Z_1)
+        Z_2 = torch.stack(Z_2)
+        GAMMA=[]
+        BETA=[]
+        for i in range(Z_1.size()[1]):
+            z = Z_1[0::,i]
+        # for i in range(1,Z_1.size()[1]+1):
+        #     z = Z_1[:i]
+            z = torch.sort(z).values
+            gamma = z[int(epsilon*z.size()[0])-1]
+            beta = z[int((1-epsilon)*z.size()[0])]
+            GAMMA.append(gamma)
+            BETA.append(beta)
+        # print(GAMMA,BETA)
+        T=[]
+        for z2 in Z_2:
+            t=[]
+            for j in range(Z_2.size()[1]):    
+                if z2[j]>BETA[j]:
+                    t.append(BETA[j])
+                elif z2[j]<GAMMA[j]:
+                    t.append(GAMMA[j])
+                else:
+                    t.append(z2[j])
+            T.append(t)
+        # print(numpy.array(T).shape,len(T), Z_2.shape, Z_1.shape)
+        tmean = numpy.sum(T,axis=0)/ len(T)
+        return tmean
+
+    # def __str__(self):
+    #     return "Univariate Trimmed Mean (b={})".format(self.b)
