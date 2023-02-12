@@ -69,7 +69,7 @@ class ExpInfo(TypedDict):
     name: str
     date: str
     path: str
-        
+
 
 class Experiment:
     def __init__(self, info: ExpInfo) -> None:
@@ -96,7 +96,7 @@ class Experiment:
         info = Record.createInfo(self.path, name)
         with open(Path(info["path"])/ ".info.json", "w") as fp:
             json.dump(info, fp)
-        
+
         record = Record(info)
         self.records[record.id] = record
         print("Record: %s" % record.id)
@@ -115,7 +115,7 @@ class Database:
         self.log_dir = log_dir
         self.experiments: dict[str, Experiment] = {}
         self.loadExp()
-    
+
     def __getitem__(self, key: str) -> Experiment:
         return self.experiments[key]
 
@@ -141,11 +141,11 @@ class Database:
         path = self.log_dir / _id
         filename =  path / ".info.json"
         info = {"id": _id, "name": name, "date": datetime.now().isoformat(), "path": str(path)}
-        
+
         path.mkdir(parents=True)
         with open(filename, "w") as fp:
             json.dump(info, fp)
-        
+
         exp = Experiment(info)
         self.experiments[exp.id] = exp
         print("Experiment: %s" % exp.id)
@@ -154,5 +154,3 @@ class Database:
     def deleteExp(self, key: str) -> None:
         shutil.rmtree(self.log_dir / key)
         self.experiments.pop(key)
-
-    

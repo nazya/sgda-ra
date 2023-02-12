@@ -1,42 +1,41 @@
-import torch
 import numpy as np
-from .base import AggregatorType, AggregationOptions
+from .base import AggregatorType
 from .aggregation import Mean, CM, Clipping, Krum, TM, RFA, UnivariateTM
 
 
-def load_bucketing(options: AggregationOptions):
-    if options.use_bucketing:
-        return Bucketing(options)
+def load_bucketing(config):
+    if config.use_bucketing:
+        return Bucketing(config)
     else:
-        return load_aggregator(options)
+        return load_aggregator(config)
 
 
-def load_aggregator(options: AggregationOptions):
-    # if options.use_bucketing:
-    #     load_bucketing(options)
-    if options.aggregator_type == AggregatorType.Mean:
-        return Mean(options)
-    elif options.aggregator_type == AggregatorType.Clipping:
-        return Clipping(options)
-    elif options.aggregator_type == AggregatorType.Krum:
-        return Krum(options)
-    elif options.aggregator_type == AggregatorType.TM:
-        return TM(options)
-    elif options.aggregator_type == AggregatorType.CM:
-        return CM(options)
-    elif options.aggregator_type == AggregatorType.RFA:
-        return RFA(options)
-    elif options.aggregator_type == AggregatorType.UnivariateTM:
-        return UnivariateTM(options)
+def load_aggregator(config):
+    # if config.use_bucketing:
+    #     load_bucketing(config)
+    if config.aggregator_type == AggregatorType.Mean:
+        return Mean(config)
+    elif config.aggregator_type == AggregatorType.Clipping:
+        return Clipping(config)
+    elif config.aggregator_type == AggregatorType.Krum:
+        return Krum(config)
+    elif config.aggregator_type == AggregatorType.TM:
+        return TM(config)
+    elif config.aggregator_type == AggregatorType.CM:
+        return CM(config)
+    elif config.aggregator_type == AggregatorType.RFA:
+        return RFA(config)
+    elif config.aggregator_type == AggregatorType.UnivariateTM:
+        return UnivariateTM(config)
     else:
         raise NotImplementedError()
 
 
 class Bucketing(object):
-    def __init__(self, options: AggregationOptions) -> None:
-        self.n = options.n_total
-        self.aggregator = load_aggregator(options)
-        self.s = options.bucketing_s
+    def __init__(self, config) -> None:
+        self.n = config.n_peers
+        self.aggregator = load_aggregator(config)
+        self.s = config.bucketing_s
 
     def __call__(self, inputs):
         indices = list(range(len(inputs)))

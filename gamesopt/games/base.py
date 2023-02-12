@@ -1,21 +1,20 @@
+import torch
 from abc import ABC
 from pathlib import Path
-import torch
-import torch.distributed as dist
+from typing import Optional
 
 
 class Game(ABC):
-    def __init__(self, num_samples: int) -> None:
-        self.num_players = 2
-        self.num_samples = num_samples
+    def __init__(self, rank, config) -> None:
         self.master_node = 0
-        self.rank = dist.get_rank()
-        self.size = int(dist.get_world_size())
+        self.num_samples = config.num_samples
+        self.rank = rank
+        self.size = config.n_peers
 
         self.p = torch.ones(self.num_samples) / self.num_samples
 
     def sample(self, n: int) -> torch.Tensor:
-        if n > self.config.num_samples:
+        if n > self.num_samples:
             raise Exception("Batch size should be not greater than the total number of samples")
         return torch.multinomial(self.p, n, replacement=False)
 
