@@ -1,8 +1,8 @@
 import torch
-from .base import Game
+from .base import _GameBase
 
 
-class QuadraticGame(Game):
+class QuadraticGame(_GameBase):
     def __init__(self, rank, config, data):
         super().__init__(rank, config)
 

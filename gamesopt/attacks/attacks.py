@@ -32,7 +32,7 @@ class IPM(_BaseAttack):
         self.n_byzan = config.n_byzan
         self.n_attacking = config.n_attacking
         self.byzantines = np.arange(self.n_peers - self.n_byzan, self.n_peers)
-        self.ipm_epsilon = config.ipm_epsilon
+        self.ipm_epsilon = config.attack_param
 
     def __call__(self, grads, peers_to_aggregate, not_banned_peers=None):
         attacking_peers = []
@@ -61,8 +61,8 @@ class IPM(_BaseAttack):
 class RandomNoise(_BaseAttack):
     def __init__(self, config) -> None:
         self.n_attacking = config.n_attacking
-        self.byzantines = np.arange(self.n_peers - self.n_byzan, self.n_peers)
-        self.rn_sigma = config.rn_sigma
+        self.byzantines = np.arange(config.n_peers - config.n_byzan, config.n_peers)
+        self.rn_sigma = config.attack_param
 
     def __call__(self, grads, peers_to_aggregate, not_banned_peers=None):
         attacking_peers = []
@@ -85,8 +85,7 @@ class ALIE(_BaseAttack):
     def __init__(self, config) -> None:
         self.n_attacking = config.n_attacking
         self.byzantines = np.arange(config.n_peers - config.n_byzan, config.n_peers)
-        self.rn_sigma = config.rn_sigma
-        self.alie_z = config.alie_z
+        self.alie_z = config.attack_param
 
         if config.n_peers/2 < config.n_byzan:
             raise Exception("Byzantines ratio must be less than 0.5")

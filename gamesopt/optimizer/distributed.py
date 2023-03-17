@@ -1,11 +1,42 @@
 import torch
 import torch.distributed as dist
-from copy import deepcopy
-from .base import Optimizer
-from gamesopt.aggregator import AggregatorType, load_aggregator, load_bucketing
+from .base import _OptimizerBase
+from gamesopt.aggregator import load_aggregator, load_bucketing
 
 
-class SGDARA(Optimizer):
+class SGDA(_OptimizerBase):
+    def __init__(self, config, data, rank):
+        super().__init__(config, data, rank)
+        self.aggregator = load_aggregator(config)
+
+    def step(self) -> None:
+        index = self.sample()
+        # index = torch.sort(index).values
+        grad = self.game.operator(index).detach()
+        with torch.no_grad():
+            # server
+            if self.game.rank == self.game.master_node:
+                # collect all the gradients to simulate Byzantines
+                grads = [torch.empty_like(grad) for _ in range(self.n_peers)]
+                dist.gather(grad, gather_list=grads)
+
+                # attack
+                grads = [grads[i] for i in self.peers_to_aggregate]
+                self.attack(grads, self.peers_to_aggregate)
+
+                # aggregation
+                agg_grad = self.aggregator(grads)
+                self.game.players.data = self.game.players - self.lr * agg_grad
+                self.num_grad += len(index)*len(self.peers_to_aggregate)
+            else:
+                dist.gather(tensor=grad, dst=self.game.master_node)
+
+        # broadcast new point
+        dist.broadcast(self.game.players, src=self.game.master_node)
+        self.k += 1
+
+
+class SGDARA(_OptimizerBase):
     def __init__(self, config, data, rank):
         super().__init__(config, data, rank)
         self.aggregator = load_bucketing(config)
@@ -37,7 +68,7 @@ class SGDARA(Optimizer):
         self.k += 1
 
 
-class MSGDARA(Optimizer):
+class MSGDARA(_OptimizerBase):
     def __init__(self, config, data, rank) -> None:
         super().__init__(config, data, rank)
         self.aggregator = load_bucketing(config)
@@ -75,12 +106,10 @@ class MSGDARA(Optimizer):
         self.k += 1
 
 
-class SEGRA(Optimizer):
+class SEGRA(_OptimizerBase):
     def __init__(self, config, data, rank) -> None:
         super().__init__(config, data, rank)
         self.aggregator = load_bucketing(config)
-        self.lr_inner = config.lr_inner
-        self.lr_outer = config.lr_outer
 
     def step(self) -> None:
         index = self.sample()
@@ -131,14 +160,10 @@ class SEGRA(Optimizer):
         self.k += 1
 
 
-class RDEG(Optimizer):
+class RDEG(_OptimizerBase):
     def __init__(self, config, data, rank) -> None:
         super().__init__(config, data, rank)
-        aggregation_config = deepcopy(config)
-        aggregation_config.aggregator_type = AggregatorType.UnivariateTM
-        self.aggregator = load_aggregator(aggregation_config)
-        self.lr_inner = config.lr_inner
-        self.lr_outer = config.lr_outer
+        self.aggregator = load_aggregator(config)
 
     def step(self) -> None:
         index = self.sample()
@@ -192,12 +217,10 @@ class RDEG(Optimizer):
         self.k += 1
 
 
-class SGDACC(Optimizer):
+class SGDACC(_OptimizerBase):
     def __init__(self, config, data, rank):
         super().__init__(config, data, rank)
-        aggregation_config = deepcopy(config)
-        aggregation_config.aggregator_type = AggregatorType.Mean
-        self.aggregator = load_aggregator(aggregation_config)
+        self.aggregator = load_aggregator(config)
         self.sigmaC = config.sigmaC
 
         self.checking = []
@@ -294,12 +317,10 @@ class SGDACC(Optimizer):
         self.k += 1
 
 
-class SEGCC(Optimizer):
+class SEGCC(_OptimizerBase):
     def __init__(self, config, data, rank):
         super().__init__(config, data, rank)
-        aggregation_config = deepcopy(config)
-        aggregation_config.aggregator_type = AggregatorType.Mean
-        self.aggregator = load_aggregator(aggregation_config)
+        self.aggregator = load_aggregator(config)
         self.sigmaC = config.sigmaC
 
         self.checking = []

@@ -22,7 +22,7 @@ class Mean(_BaseAggregator):
 
 class TM(_BaseAggregator):
     def __init__(self, config) -> None:
-        self.b = config.trimmed_mean_b
+        self.b = config.aggregator_param_a
 
     def __call__(self, inputs):
         if len(inputs) - 2 * self.b > 0:
@@ -60,8 +60,8 @@ class CM(_BaseAggregator):
 
 class Clipping(_BaseAggregator):
     def __init__(self, config) -> None:
-        self.tau = config.clipping_tau
-        self.n_iter = config.clipping_n_iter
+        self.n_iter = config.aggregator_param_a
+        self.tau = config.aggregator_param_b
         # super(Clipping, self).__init__()
         self.momentum = None
 
@@ -178,7 +178,7 @@ class Krum(_BaseAggregator):
     def __init__(self, config) -> None:
         self.n = config.n_peers
         self.f = config.n_byzan
-        self.m = config.krum_m
+        self.m = config.aggregator_param_a
         self.top_m_indices = None
         # super(Krum, self).__init__()
 
@@ -218,8 +218,8 @@ class RFA(_BaseAggregator):
     r""""""
 
     def __init__(self, config) -> None:
-        self.T = config.rfa_T
-        self.nu = config.rfa_nu
+        self.T = config.aggregator_param_a
+        self.nu = config.aggregator_param_b
         # super(RFA, self).__init__()
 
     # def rfa(self, weights, z):

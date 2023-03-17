@@ -1,21 +1,23 @@
 import torch
 from abc import ABC, abstractmethod
 from typing import Optional
-from enum import Enum
+from enum import auto
+from gamesopt import DictEnum
 from gamesopt.attacks import load_attack
 from gamesopt.games import load_game
 
 
-class OptimizerType(Enum):
-    SGDARA = '>'
-    MSGDARA = '<'
-    SEGRA = 'v'
-    SGDACC = 's'
-    SEGCC = 'D'
-    RDEG = '*'
+class Optimizer(DictEnum):
+    SGDARA = auto()
+    MSGDARA = auto()
+    SEGRA = auto()
+    SGDACC = auto()
+    SEGCC = auto()
+    RDEG = auto()
+    SGDA = auto()
 
 
-class Optimizer(ABC):
+class _OptimizerBase(ABC):
     def __init__(self, config, data, rank):
         self.rank = rank
         self.k = 0
@@ -23,8 +25,8 @@ class Optimizer(ABC):
         self.lr = config.lr
         self.alpha = config.alpha
         self.n_peers = config.n_peers
-        self.lr_inner = config.lr_inner
-        self.lr_outer = config.lr_outer
+        self.lr_inner = config.lr
+        self.lr_outer = config.lr
         self.batch_size = config.batch_size
         self.attack = load_attack(config)
         self.game = load_game(config, data, rank, config.n_peers)

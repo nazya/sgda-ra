@@ -1,6 +1,27 @@
 import numpy as np
-from .base import AggregatorType
+from .base import Aggregator
 from .aggregation import Mean, CM, Clipping, Krum, TM, RFA, UnivariateTM
+
+
+def load_aggregator(config):
+    # if config.use_bucketing:
+    #     load_bucketing(config)
+    if config.aggregator == Aggregator.Mean:
+        return Mean(config)
+    elif config.aggregator == Aggregator.Clipping:
+        return Clipping(config)
+    elif config.aggregator == Aggregator.Krum:
+        return Krum(config)
+    elif config.aggregator == Aggregator.TM:
+        return TM(config)
+    elif config.aggregator == Aggregator.CM:
+        return CM(config)
+    elif config.aggregator == Aggregator.RFA:
+        return RFA(config)
+    elif config.aggregator == Aggregator.UnivariateTM:
+        return UnivariateTM(config)
+    else:
+        raise NotImplementedError()
 
 
 def load_bucketing(config):
@@ -8,27 +29,6 @@ def load_bucketing(config):
         return Bucketing(config)
     else:
         return load_aggregator(config)
-
-
-def load_aggregator(config):
-    # if config.use_bucketing:
-    #     load_bucketing(config)
-    if config.aggregator_type == AggregatorType.Mean:
-        return Mean(config)
-    elif config.aggregator_type == AggregatorType.Clipping:
-        return Clipping(config)
-    elif config.aggregator_type == AggregatorType.Krum:
-        return Krum(config)
-    elif config.aggregator_type == AggregatorType.TM:
-        return TM(config)
-    elif config.aggregator_type == AggregatorType.CM:
-        return CM(config)
-    elif config.aggregator_type == AggregatorType.RFA:
-        return RFA(config)
-    elif config.aggregator_type == AggregatorType.UnivariateTM:
-        return UnivariateTM(config)
-    else:
-        raise NotImplementedError()
 
 
 class Bucketing(object):
@@ -53,6 +53,3 @@ class Bucketing(object):
 
     def __str__(self):
         return "Bucketing (agg={}, s={})".format(self.aggregator, self.s)
-
-
-

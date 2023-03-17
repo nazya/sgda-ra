@@ -1,22 +1,11 @@
-from enum import Enum
 from typing import Optional
 from .base import Game
+from .utils import create_bias, create_matrix
 from .quadratic_games import QuadraticGame
-# from .kelly_auction import KellyAuction, KellyAuctionConfig
-# from .bilinear import BilinearGame, BilinearGameConfig
-# from .robust_regression import RobustLinRegConfig, RobustLinReg, RobustLogReg
-
-
-class GameType(Enum):
-    QUADRATIC = "quadratic"
-    # KELLY_AUCTION = "kelly_auction"
-    # ROBUST_LINEAR_REG = "robust_linear_reg"
-    # BILINEAR = "bilinear"
-    # ROBUST_LOGISTIC_REG = "robust_logistic_regression"
 
 
 def load_game(config, data, rank: Optional[int] = None, size: Optional[int] = None) -> Game:
-    if config.game_type == GameType.QUADRATIC:
+    if config.game == Game.Quadratic:
         return QuadraticGame(rank, config, data)
     # elif options.game_type == GameType.KELLY_AUCTION:
     #     return KellyAuction(options.kelly_auction_options, rank)
@@ -28,4 +17,3 @@ def load_game(config, data, rank: Optional[int] = None, size: Optional[int] = No
     #     return RobustLogReg(rank)
     else:
         raise ValueError()
-

@@ -1,10 +1,22 @@
 import torch
 from abc import ABC
 from pathlib import Path
-from typing import Optional
+from enum import auto
+from gamesopt import DictEnum
+# from .kelly_auction import KellyAuction, KellyAuctionConfig
+# from .bilinear import BilinearGame, BilinearGameConfig
+# from .robust_regression import RobustLinRegConfig, RobustLinReg, RobustLogReg
 
 
-class Game(ABC):
+class Game(DictEnum):
+    Quadratic = auto()
+    # KELLY_AUCTION = "kelly_auction"
+    # ROBUST_LINEAR_REG = "robust_linear_reg"
+    # BILINEAR = "bilinear"
+    # ROBUST_LOGISTIC_REG = "robust_logistic_regression"
+
+
+class _GameBase(ABC):
     def __init__(self, rank, config) -> None:
         self.master_node = 0
         self.num_samples = config.num_samples

@@ -1,14 +1,15 @@
 """
 Attacks which take in gradients.
 """
-from enum import Enum
+from enum import auto
+from gamesopt import DictEnum
 
 
-class AttackType(Enum):
-    BF = "BitFlipping"
-    ALIE = "ALittleIsEnough"
-    IPM = "InnerProductManipulation"
-    RN = "RandomNoise"
+class Attack(DictEnum):
+    BF = auto()
+    RN = auto()
+    IPM = auto()
+    ALIE = auto()
 
 
 class _BaseAttack(object):

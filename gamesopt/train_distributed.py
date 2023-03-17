@@ -1,31 +1,31 @@
 import os
 import sys
-import torch
+import json
 import random
+from collections import namedtuple
+# import mlflow
 from mlflow import MlflowClient
 import torch.distributed as dist
 import torch.multiprocessing as mp
-from dataclasses import dataclass
-from gamesopt.aggregator import AggregatorType
-from gamesopt.attacks import AttackType
-from gamesopt.games import GameType
-from .optimizer.base import Optimizer, OptimizerType
-from .optimizer.distributed import SGDARA, MSGDARA, SEGRA, SGDACC, SEGCC, RDEG
+from .optimizer.base import Optimizer
+from .optimizer.distributed import SGDA, SGDARA, MSGDARA, SEGRA, SGDACC, SEGCC, RDEG
 # from .train import TrainConfig
 
 
 def load_distributed_optimizer(config, data, rank):
-    if config.optimizer_type == OptimizerType.SGDARA:
+    if config.optimizer == Optimizer.SGDA:
+        return SGDA(config, data, rank)
+    elif config.optimizer == Optimizer.SGDARA:
         return SGDARA(config, data, rank)
-    elif config.optimizer_type == OptimizerType.MSGDARA:
+    elif config.optimizer == Optimizer.MSGDARA:
         return MSGDARA(config, data, rank)
-    elif config.optimizer_type == OptimizerType.SEGRA:
+    elif config.optimizer == Optimizer.SEGRA:
         return SEGRA(config, data, rank)
-    elif config.optimizer_type == OptimizerType.SGDACC:
+    elif config.optimizer == Optimizer.SGDACC:
         return SGDACC(config, data, rank)
-    elif config.optimizer_type == OptimizerType.SEGCC:
+    elif config.optimizer == Optimizer.SEGCC:
         return SEGCC(config, data, rank)
-    elif config.optimizer_type == OptimizerType.RDEG:
+    elif config.optimizer == Optimizer.RDEG:
         return RDEG(config, data, rank)
     else:
         raise NotImplementedError()
@@ -35,69 +35,29 @@ class PortNotAvailableError(Exception):
     pass
 
 
-@dataclass
-class BaseConfig:
-    n_iter: int
-
-    n_peers: int
-    n_byzan: int
-
-    game_type: GameType
-    num_samples: int
-    dim: int
-    with_bias: bool
-    mu: float
-    ell: float
-
-    attack_type: AttackType
-    n_attacking: int
-    ipm_epsilon: float
-    rn_sigma: float
-    alie_z: float
-
-    use_bucketing: bool
-    bucketing_s: int
-    aggregator_type: AggregatorType
-    trimmed_mean_b: int
-    krum_m: int
-    clipping_tau: int
-    clipping_n_iter: int
-    rfa_T: int
-    rfa_nu: float
-
-    optimizer_type: OptimizerType
-    alpha: float
-    lr: float
-    lr_inner: float
-    lr_outer: float
-    sigmaC: float
-    batch_size: int
-
-
-@dataclass
-class BaseData:
-    matrix: torch.Tensor
-    bias: torch.Tensor
-    true: torch.Tensor
-    players: torch.Tensor
-
-
-def _train(rank: int, port: str, config: BaseConfig, data: BaseData):
-    setup(rank, config.n_peers, port)
+def _train(rank: int, port: str, config, data):
+    # setup(rank, config['n_peers'], port)
+    config = json.loads(config)
+    setup(rank, config['n_peers'], port)
     # print("Init... ", rank)
-    optimizer: Optimizer = load_distributed_optimizer(config, data, rank)
+    # config = BaseConfig(**config)
+    # data = BaseData(**data)
     verbose = os.environ['MLFLOW_VERBOSE'] == 'True'
-
     # print("Starting... ", rank == dist.get_rank())
     if verbose and rank == 0:
+        tracking_uri = '/home/nazya/mlruns'
         experiment_name = os.environ['MLFLOW_EXPERIMENT_NAME']
-        tracking_uri = os.environ['MLFLOW_TRACKING_URI']
         client = MlflowClient(tracking_uri=tracking_uri)
         e = client.get_experiment_by_name(experiment_name)
         e_id = client.create_experiment(experiment_name) if e is None else e.experiment_id
-        r = client.create_run(experiment_id=e_id, run_name=str(config))
+        r = client.create_run(experiment_id=e_id, run_name=os.environ['MLFLOW_RUN_NAME'])
         r_id = r.info.run_id
+        client.log_dict(r_id, config, 'config.json')
+        client.log_param(r_id, 'Title', os.environ['MLFLOW_RUN_TITLE'])
 
+    config = namedtuple('Config', config.keys())(**config)
+    data = namedtuple('Data', data.keys())(**data)
+    optimizer = load_distributed_optimizer(config, data, rank)
     for _ in range(config.n_iter):
         if verbose and rank == 0:
             if optimizer.k % int(config.n_iter / 200) == 0 or optimizer.k == config.n_iter - 1:
@@ -124,7 +84,11 @@ def setup(rank: int, size: int, port: str, backend: str = 'gloo') -> None:
         raise PortNotAvailableError
 
 
-def train(config: BaseConfig, data: BaseData):
+def train(config, data):
+    nprocs = config.n_peers
+    # config = config.__dict__
+    config = json.dumps(config.__dict__)
+    data = data.__dict__
     # Tries to allocate a port until a port is available
     while True:
         port = str(random.randrange(1030, 49151))
@@ -132,7 +96,9 @@ def train(config: BaseConfig, data: BaseData):
         try:
             mp.spawn(_train,
                      args=(port, config, data),
-                     nprocs=config.n_peers,
+                     # nprocs=config['n_peers'],
+                     # nprocs=config.n_peers,
+                     nprocs=nprocs,
                      join=True)
             break
         except PortNotAvailableError:

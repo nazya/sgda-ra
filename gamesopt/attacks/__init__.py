@@ -1,15 +1,17 @@
-from .base import AttackType
+from .base import Attack
 from .attacks import BitFlipping, ALIE, IPM, RandomNoise
 
 
 def load_attack(config):
-    if config.attack_type == AttackType.BF:
+    if config.attack == Attack.BF:
         return BitFlipping(config)
-    elif config.attack_type == AttackType.ALIE:
+    elif config.attack == Attack.ALIE:
         return ALIE(config)
-    elif config.attack_type == AttackType.IPM:
+    elif config.attack == Attack.IPM:
         return IPM(config)
-    elif config.attack_type == AttackType.RN:
+    elif config.attack == Attack.RN:
         return RandomNoise(config)
     else:
         raise NotImplementedError()
+
+
