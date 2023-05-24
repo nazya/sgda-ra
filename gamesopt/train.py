@@ -1,65 +1,56 @@
-# from .optimizer.prox import ProxOptions, load_prox
-from .games import load_game, GameOptions
-from .optimizer import load_optimizer, OptimizerOptions
+from .games import load_game, GameOptions, Game
+from .optimizer.base import Optimizer, OptimizerType, OptimizerOptions
+from .optimizer.single_thread import SGDARA, MSGDARA, SEGRA, SGDACC, SEGCC, RDEG
 from dataclasses import dataclass
 from collections import defaultdict
-import torch
+import sys
 from .db import Record
-from pathlib import Path
-from typing import Optional
+
+
+def load_optimizer(game: Game, options: OptimizerOptions) -> Optimizer:
+    if options.optimizer_type == OptimizerType.SGDARA:
+        return SGDARA(game, options)
+    elif options.optimizer_type == OptimizerType.MSGDARA:
+        return MSGDARA(game, options)
+    elif options.optimizer_type == OptimizerType.SEGRA:
+        return SEGRA(game, options)
+    elif options.optimizer_type == OptimizerType.SGDACC:
+        return SGDACC(game, options)
+    elif options.optimizer_type == OptimizerType.SEGCC:
+        return SEGCC(game, options)
+    elif options.optimizer_type == OptimizerType.RDEG:
+        return RDEG(game, options)
+    else:
+        raise NotImplementedError()
+
 
 @dataclass
 class TrainConfig:
+    num_iter: int
+    n_peers: int
     game: GameOptions
     optimizer: OptimizerOptions
-    num_iter: int
-    # seed: int = 1234
-    # name: str = ""
-    # save_file: Optional[Path] = None
-    # load_file: Optional[Path] = None
-    # precision: float = 1.
-
-# @dataclass
-# class TrainConfig:
-#     game: GameOptions = GameOptions()
-#     optimizer: OptimizerOptions = OptimizerOptions()
-#     # prox: ProxOptions = ProxOptions()
-#     num_iter: int = 100
-#     seed: int = 1234
-#     name: str = ""
-#     save_file: Optional[Path] = None
-#     load_file: Optional[Path] = None
-#     precision: float = 1.
 
 
 def train(config: TrainConfig, record: Record = Record()) -> Record:
     record.save_config(config)
     # torch.manual_seed(config.seed)
-    
-    print("Init...")
-    game = load_game(config.game)
-    if config.load_file is not None:
-        game_copy = game.load(config.load_file, copy=True)
-    
-    prox = load_prox(config.prox)    
-    optimizer = load_optimizer(game, config.optimizer, prox)
 
-    
+    # print("Init...")
+    game = load_game(config.game)
+    optimizer = load_optimizer(game, config.optimizer)
+
     metrics = defaultdict(list)
     for _ in range(config.num_iter):
-        metrics["hamiltonian"].append(game.hamiltonian())
-        metrics["num_grad"].append(optimizer.num_grad)
-        metrics["prox_dist"].append(optimizer.fixed_point_check(config.precision))
-        if config.load_file:
-            metrics["dist2opt"].append(game.dist(game_copy))
-
-        record.save_metrics(metrics)
-
+        if optimizer.k % int(config.num_iter / 100) == 0 or optimizer.k == config.num_iter-1:
+            metrics["dist"].append(game.dist())
+            # metrics["hamiltonian"].append(game.hamiltonian())
+            metrics["n_iter"].append(optimizer.k)
+            metrics["num_grad"].append(optimizer.num_grad)
+            sys.stdout.write(str(config.num_iter - 1 - optimizer.k)+9*' '+'\r')
+            sys.stdout.flush()
         optimizer.step()
-        
-        if config.save_file is not None:
-            game.save(config.save_file)
-
+    record.save_metrics(metrics)
     return record
 
 

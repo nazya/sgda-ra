@@ -1,18 +1,18 @@
-# from typing import Optional
 import torch
-# import torch.nn.functional as F
-from .base import _BaseAggregator, AggregationOptions
+import random
+import numpy
+from .base import _BaseAggregator
 
 
 class Mean(_BaseAggregator):
-    def __init__(self, options: AggregationOptions) -> None:
+    def __init__(self, config) -> None:
         pass
 
     def __call__(self, inputs):
         if len(inputs) == 0:
             print('len = 0')
             return 0
-        inputs = torch.stack(inputs, dim=0)
+        inputs = torch.cat(inputs, dim=0)
         values = inputs.mean(dim=0)
         return values
 
@@ -21,9 +21,8 @@ class Mean(_BaseAggregator):
 
 
 class TM(_BaseAggregator):
-    def __init__(self, options: AggregationOptions) -> None:
-        self.b = options.trimmed_mean_b
-        # super(TM, self).__init__()
+    def __init__(self, config) -> None:
+        self.b = config.aggregator_param_a
 
     def __call__(self, inputs):
         if len(inputs) - 2 * self.b > 0:
@@ -35,7 +34,7 @@ class TM(_BaseAggregator):
             if b < 0:
                 raise RuntimeError
 
-        stacked = torch.stack(inputs, dim=0)
+        stacked = torch.cat(inputs, dim=0)
         largest, _ = torch.topk(stacked, b, 0)
         neg_smallest, _ = torch.topk(-stacked, b, 0)
         new_stacked = torch.cat([stacked, -largest, neg_smallest]).sum(0)
@@ -47,20 +46,22 @@ class TM(_BaseAggregator):
 
 
 class CM(_BaseAggregator):
-    def __init__(self, options: AggregationOptions) -> None:
+    def __init__(self, config) -> None:
         pass
 
     def __call__(self, inputs):
-        stacked = torch.stack(inputs, dim=0)
+        stacked = torch.cat(inputs, dim=0)
+        # print(stacked.shape)
         values_upper, _ = stacked.median(dim=0)
         values_lower, _ = (-stacked).median(dim=0)
+        # print((values_upper - values_lower) / 2)
         return (values_upper - values_lower) / 2
 
 
 class Clipping(_BaseAggregator):
-    def __init__(self, options: AggregationOptions) -> None:
-        self.tau = options.clipping_tau
-        self.n_iter = options.clipping_n_iter
+    def __init__(self, config) -> None:
+        self.n_iter = config.aggregator_param_a
+        self.tau = config.aggregator_param_b
         # super(Clipping, self).__init__()
         self.momentum = None
 
@@ -86,8 +87,8 @@ class Clipping(_BaseAggregator):
     def __str__(self):
         return "Clipping (tau={}, n_iter={})".format(self.tau, self.n_iter)
 
-# krum
 
+# krum
 def _compute_scores(distances, i, n, f):
     """Compute scores for node i.
     Arguments:
@@ -174,10 +175,10 @@ class Krum(_BaseAggregator):
     Advances in Neural Information Processing Systems. 2017.
     """
 
-    def __init__(self, options:AggregationOptions) -> None:
-        self.n = options.n_total
-        self.f = options.n_byzan
-        self.m = options.krum_m
+    def __init__(self, config) -> None:
+        self.n = config.n_peers
+        self.f = config.n_byzan
+        self.m = config.aggregator_param_a
         self.top_m_indices = None
         # super(Krum, self).__init__()
 
@@ -216,9 +217,9 @@ def smoothed_weiszfeld(weights, alphas, z, nu, T):
 class RFA(_BaseAggregator):
     r""""""
 
-    def __init__(self, options:AggregationOptions) -> None:
-        self.T = options.rfa_T
-        self.nu = options.rfa_nu
+    def __init__(self, config) -> None:
+        self.T = config.aggregator_param_a
+        self.nu = config.aggregator_param_b
         # super(RFA, self).__init__()
 
     # def rfa(self, weights, z):
@@ -232,3 +233,49 @@ class RFA(_BaseAggregator):
 
     def __str__(self):
         return "RFA(T={},nu={})".format(self.T, self.nu)
+
+
+class UnivariateTM(_BaseAggregator):
+    def __init__(self, config) -> None:
+        self.alpha = 0.06
+        self.delta = 0.999
+
+    def __call__(self, inputs):
+        # epsilon = 8 * self.alpha + 24 * numpy.log(4/self.delta) / len(inputs)
+        epsilon = 0.5
+        # print(inputs)
+        Z1_size = int(0.5*len(inputs))
+        Z_1 = random.sample(inputs, Z1_size)
+        Z_2 = list(set(inputs) - set(Z_1))
+        Z_1 = torch.stack(Z_1)
+        Z_2 = torch.stack(Z_2)
+        GAMMA = []
+        BETA = []
+        for i in range(Z_1.size()[1]):
+            z = Z_1[0::, i]
+        # for i in range(1,Z_1.size()[1]+1):
+        #     z = Z_1[:i]
+            z = torch.sort(z).values
+            gamma = z[int(epsilon*z.size()[0])-1]
+            beta = z[int((1-epsilon)*z.size()[0])]
+            GAMMA.append(gamma)
+            BETA.append(beta)
+        # print(GAMMA,BETA)
+        T=[]
+        for z2 in Z_2:
+            t=[]
+            for j in range(Z_2.size()[1]):
+                if z2[j] > BETA[j]:
+                    t.append(BETA[j])
+                elif z2[j] < GAMMA[j]:
+                    t.append(GAMMA[j])
+                else:
+                    t.append(z2[j])
+            T.append(t)
+        # print(numpy.array(T).shape,len(T), Z_2.shape, Z_1.shape)
+        # tmean = torch.mean(torch.stack(T))
+        tmean = numpy.sum(T, axis=0) / len(T)
+        return tmean
+
+    # def __str__(self):
+    #     return "Univariate Trimmed Mean (b={})".format(self.b)

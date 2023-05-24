@@ -1,33 +1,18 @@
 """
 Aggregators which takes in weights and gradients.
 """
-from dataclasses import dataclass
-from enum import Enum
+from enum import auto
+from gamesopt import DictEnum
 
 
-class AggregatorType(Enum):
-    Mean = "Mean"
-    Clipping = "Clipping"
-    Krum = "Krum"
-    CM = "CM"
-    TM = "TM"
-    RFA = "RFA"
-
-
-@dataclass
-class AggregationOptions:
-    n_total: int
-    n_byzan: int
-    aggregator_type: AggregatorType
-    use_bucketing: bool
-    bucketing_s: int
-    clipping_tau: int
-    clipping_n_iter: int
-    trimmed_mean_b: int
-    krum_m: int
-    rfa_T: int
-    rfa_nu: int
-    # bucketing: int=10
+class Aggregator(DictEnum):
+    Mean = auto()
+    Clipping = auto()
+    Krum = auto()
+    CM = auto()
+    TM = auto()
+    RFA = auto()
+    UnivariateTM = auto()
 
 
 class _BaseAggregator(object):
