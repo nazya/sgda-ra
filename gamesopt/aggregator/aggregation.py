@@ -238,12 +238,12 @@ class RFA(_BaseAggregator):
 class UnivariateTM(_BaseAggregator):
     def __init__(self, config) -> None:
         self.alpha = 0.06
-        self.delta = 0.999
+        self.delta = 0.9
 
     def __call__(self, inputs):
-        # epsilon = 8 * self.alpha + 24 * numpy.log(4/self.delta) / len(inputs)
-        epsilon = 0.5
-        # print(inputs)
+        epsilon = 8 * self.alpha + 24 * numpy.log(4/self.delta) / len(inputs)
+        # epsilon = 0.5
+        # print(epsilon)
         Z1_size = int(0.5*len(inputs))
         Z_1 = random.sample(inputs, Z1_size)
         Z_2 = list(set(inputs) - set(Z_1))
