@@ -45,7 +45,7 @@ def _train(rank: int, port: str, config, data):
     verbose = os.environ['MLFLOW_VERBOSE'] == 'True'
     # print("Starting... ", rank == dist.get_rank())
     if verbose and rank == 0:
-        tracking_uri = '/home/nazya/mlruns'
+        tracking_uri = os.path.expanduser('~/mlruns/')
         experiment_name = os.environ['MLFLOW_EXPERIMENT_NAME']
         client = MlflowClient(tracking_uri=tracking_uri)
         e = client.get_experiment_by_name(experiment_name)
