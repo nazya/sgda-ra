@@ -1,4 +1,4 @@
-# Code for Byzantine-Tolerant Methods for Distributed Variational Inequalities
+# [Code for Byzantine-Tolerant Methods for Distributed Variational Inequalities](https://openreview.net/forum?id=ER0bcYXvvo)
 
 ## Requirements
 ```setup
