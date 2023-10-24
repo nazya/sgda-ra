@@ -1,4 +1,4 @@
-# Code for 
+# Code for Byzantine-Tolerant Methods for Distributed Variational Inequalities
 
 ## Requirements
 ```setup
@@ -6,7 +6,7 @@ conda env create -f environment.yml
 ```
 
 ## Notebooks
-To reproduce the results of the paper, run the train notebooks, the run corresponding plot notebooks.
+To reproduce the results of the paper, run the train notebooks, then run corresponding plot notebooks.
 
 ## Documentation
 ### Games
